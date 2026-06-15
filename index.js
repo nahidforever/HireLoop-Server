@@ -90,6 +90,22 @@ async function run() {
       next();
     };
 
+    // must be used after verifyToken middleware
+    const verifyRecruiter = async (req, res, next) => {
+      if (req.user?.role !== "recruiter") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
+    // must be used after verifyToken middleware
+    const verifyAdmin = async (req, res, next) => {
+      if (req.user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
     app.get("/api/users", async (req, res) => {
       const cursor = usersCollection.find().skip(6);
       const result = await cursor.toArray();
@@ -149,7 +165,9 @@ async function run() {
 
           // check whether asking for user information or someone else
           console.log(req.user, req.query.applicantId);
-          
+          if (req.user._id.toString() !== req.query.applicantId) {
+            return res.status(403).send({ message: "forbidden access" });
+          }
         }
         if (req.query.jobId) {
           query.jobId = req.query.jobId;
@@ -256,18 +274,23 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/api/companies/:id", logger, verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const updatedCompany = req.body;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          status: updatedCompany.status,
-        },
-      };
-      const result = await companyCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/api/companies/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const updatedCompany = req.body;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            status: updatedCompany.status,
+          },
+        };
+        const result = await companyCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      },
+    );
 
     // plans
     app.get("/api/plans", async (req, res) => {
